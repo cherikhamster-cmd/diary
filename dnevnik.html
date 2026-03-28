@@ -116,116 +116,109 @@
     </div>
 
     <script>
-        // ВАШ URL ОТ APPS SCRIPT
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxFC8U_0BfYoMpY_FlzrHLmysqX3Rb0MeUYOf6r54UDDePJMS2c4ySNC5rrJwgqVexiSw/exec';
-        
-        // Конфигурация
-        let config = {
-            sheetId: '1H-PeY-hJKNuape3fUyOScaZrdGaHHocFiN_e0Cu4lgk',
-            sheetName: 'Лист1'
-        };
-        
-        // Локальное хранилище для кэша
-        let localEntries = [];
-        
-        // Загрузка настроек
-        function loadSettings() {
-            const saved = localStorage.getItem('diary_config');
-            if (saved) {
-                config = JSON.parse(saved);
-            }
-            const sheetIdInput = document.getElementById('sheet-id');
-            const sheetNameInput = document.getElementById('sheet-name');
-            if (sheetIdInput) sheetIdInput.value = config.sheetId;
-            if (sheetNameInput) sheetNameInput.value = config.sheetName;
+    // ВАШ URL ОТ APPS SCRIPT (скопируйте после публикации)
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxFC8U_0BfYoMpY_FlzrHLmysqX3Rb0MeUYOf6r54UDDePJMS2c4ySNC5rrJwgqVexiSw/exec';
+    
+    // Конфигурация
+    let config = {
+        sheetId: '1H-PeY-hJKNuape3fUyOScaZrdGaHHocFiN_e0Cu4lgk',
+        sheetName: 'Лист1'
+    };
+    
+    // Локальное хранилище для кэша
+    let localEntries = [];
+    
+    // Загрузка настроек
+    function loadSettings() {
+        const saved = localStorage.getItem('diary_config');
+        if (saved) {
+            config = JSON.parse(saved);
         }
+        const sheetIdInput = document.getElementById('sheet-id');
+        const sheetNameInput = document.getElementById('sheet-name');
+        if (sheetIdInput) sheetIdInput.value = config.sheetId;
+        if (sheetNameInput) sheetNameInput.value = config.sheetName;
+    }
+    
+    // Сохранение настроек
+    function saveSettings() {
+        config.sheetId = document.getElementById('sheet-id').value;
+        config.sheetName = document.getElementById('sheet-name').value;
+        localStorage.setItem('diary_config', JSON.stringify(config));
+        showMessage('Настройки сохранены!', 'success', 'diary-message');
+        checkConnection();
+    }
+    
+    // Проверка подключения к Google Sheets
+    async function checkConnection() {
+        const statusDiv = document.getElementById('status-info');
+        if (!statusDiv) return;
         
-        // Сохранение настроек
-        function saveSettings() {
-            config.sheetId = document.getElementById('sheet-id').value;
-            config.sheetName = document.getElementById('sheet-name').value;
-            localStorage.setItem('diary_config', JSON.stringify(config));
-            showMessage('Настройки сохранены!', 'success', 'diary-message');
-            checkConnection();
-        }
+        statusDiv.innerHTML = '⏳ Проверка подключения...';
+        statusDiv.className = 'info';
         
-        // Проверка подключения к Google Sheets
-        async function checkConnection() {
-            const statusDiv = document.getElementById('status-info');
-            if (!statusDiv) return;
+        try {
+            const response = await fetch(`${SCRIPT_URL}?test=1`, {
+                method: 'GET'
+            });
             
-            statusDiv.innerHTML = '⏳ Проверка подключения...';
-            statusDiv.className = 'info';
+            const result = await response.json();
             
-            try {
-                // Пытаемся отправить тестовый запрос
-                const response = await fetch(SCRIPT_URL + '?test=1', {
-                    method: 'GET',
-                    mode: 'no-cors'
-                });
-                
+            if (result.status === 'ok') {
                 statusDiv.innerHTML = '✅ Apps Script доступен! Записи будут сохраняться в Google Sheets.';
                 statusDiv.className = 'success';
-            } catch (error) {
-                statusDiv.innerHTML = '⚠️ Не удалось подключиться к Apps Script. Проверьте URL и интернет-соединение.';
+            } else {
+                statusDiv.innerHTML = '⚠️ Ошибка подключения к Apps Script.';
                 statusDiv.className = 'error';
             }
+        } catch (error) {
+            console.error('Ошибка:', error);
+            statusDiv.innerHTML = '⚠️ Не удалось подключиться к Apps Script. Проверьте URL и интернет-соединение.';
+            statusDiv.className = 'error';
+        }
+    }
+    
+    // Сохранение записи
+    async function saveEntry(event) {
+        event.preventDefault();
+        
+        const date = document.getElementById('entry-date').value;
+        const title = document.getElementById('entry-title').value;
+        const moodSelect = document.getElementById('entry-mood');
+        const mood = moodSelect.options[moodSelect.selectedIndex].text;
+        const text = document.getElementById('entry-text').value;
+        
+        if (!date || !title || !text) {
+            showMessage('Заполните все поля!', 'error', 'diary-message');
+            return;
         }
         
-        // Сохранение записи
-        async function saveEntry(event) {
-            event.preventDefault();
+        const submitBtn = document.querySelector('#diary-form button');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = '⏳ Отправка в Google Sheets...';
+        submitBtn.disabled = true;
+        
+        try {
+            const formData = new URLSearchParams();
+            formData.append('date', date);
+            formData.append('title', title);
+            formData.append('mood', mood);
+            formData.append('text', text);
+            formData.append('sheetId', config.sheetId);
+            formData.append('sheetName', config.sheetName);
+            formData.append('timestamp', new Date().toISOString());
             
-            const date = document.getElementById('entry-date').value;
-            const title = document.getElementById('entry-title').value;
-            const moodSelect = document.getElementById('entry-mood');
-            const mood = moodSelect.options[moodSelect.selectedIndex].text;
-            const text = document.getElementById('entry-text').value;
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString()
+            });
             
-            if (!date || !title || !text) {
-                showMessage('Заполните все поля!', 'error', 'diary-message');
-                return;
-            }
+            const result = await response.json();
             
-            const submitBtn = document.querySelector('#diary-form button');
-            const originalText = submitBtn.textContent;
-            submitBtn.textContent = '⏳ Отправка в Google Sheets...';
-            submitBtn.disabled = true;
-            
-            // Создаем объект записи
-            const entry = {
-                date: date,
-                title: title,
-                mood: mood,
-                text: text,
-                timestamp: new Date().toISOString(),
-                localId: Date.now()
-            };
-            
-            try {
-                // Отправляем в Google Sheets через Apps Script
-                const formData = new URLSearchParams();
-                formData.append('date', entry.date);
-                formData.append('title', entry.title);
-                formData.append('mood', entry.mood);
-                formData.append('text', entry.text);
-                formData.append('sheetId', config.sheetId);
-                formData.append('sheetName', config.sheetName);
-                formData.append('timestamp', entry.timestamp);
-                
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: formData
-                });
-                
-                // Сохраняем в локальное хранилище для отображения
-                localEntries.unshift(entry);
-                localStorage.setItem('diary_local_cache', JSON.stringify(localEntries));
-                
+            if (result.status === 'success') {
                 showMessage('✅ Запись успешно сохранена в Google Sheets!', 'success', 'diary-message');
                 
                 // Очищаем форму
@@ -233,153 +226,174 @@
                 document.getElementById('entry-text').value = '';
                 document.getElementById('entry-date').value = new Date().toISOString().split('T')[0];
                 
-                // Обновляем список записей
-                loadEntries();
-                
-            } catch (error) {
-                console.error('Ошибка:', error);
-                showMessage('❌ Ошибка сохранения. Проверьте подключение.', 'error', 'diary-message');
-            } finally {
-                submitBtn.textContent = originalText;
-                submitBtn.disabled = false;
+                // Обновляем список записей из таблицы
+                await loadEntriesFromSheet();
+            } else {
+                showMessage('❌ Ошибка: ' + result.message, 'error', 'diary-message');
             }
+        } catch (error) {
+            console.error('Ошибка:', error);
+            showMessage('❌ Ошибка сохранения. Проверьте подключение.', 'error', 'diary-message');
+        } finally {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
         }
-        
-        // Загрузка записей для отображения
-        function loadEntries() {
-            // Загружаем из локального кэша
+    }
+    
+    // Загрузка записей из Google Sheets
+    async function loadEntriesFromSheet() {
+        try {
+            const response = await fetch(`${SCRIPT_URL}?action=get&sheetId=${config.sheetId}&sheetName=${config.sheetName}`, {
+                method: 'GET'
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success' && result.entries) {
+                localEntries = result.entries;
+                localStorage.setItem('diary_local_cache', JSON.stringify(localEntries));
+                displayEntries(localEntries.sort((a, b) => new Date(b.date) - new Date(a.date)));
+            } else {
+                // Если не удалось загрузить из таблицы, используем локальный кэш
+                const cached = localStorage.getItem('diary_local_cache');
+                if (cached) {
+                    localEntries = JSON.parse(cached);
+                    displayEntries(localEntries);
+                } else {
+                    displayEntries([]);
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки:', error);
+            // Используем локальный кэш
             const cached = localStorage.getItem('diary_local_cache');
             if (cached) {
                 localEntries = JSON.parse(cached);
+                displayEntries(localEntries);
+            } else {
+                displayEntries([]);
             }
-            displayEntries(localEntries.sort((a, b) => new Date(b.date) - new Date(a.date)));
         }
+    }
+    
+    // Загрузка записей для отображения (совместимость)
+    function loadEntries() {
+        loadEntriesFromSheet();
+    }
+    
+    // Отображение записей
+    function displayEntries(entries) {
+        const container = document.getElementById('entries-list');
+        if (!container) return;
         
-        // Отображение записей
-        function displayEntries(entries) {
-            const container = document.getElementById('entries-list');
-            if (!container) return;
-            
-            if (entries.length === 0) {
-                container.innerHTML = `
-                    <div class="loading">📭 Пока нет записей. Создайте первую запись!</div>
-                    <div class="info" style="margin-top: 10px;">
-                        💡 Записи будут сохраняться в Google Sheets таблицу:<br>
-                        <a href="https://docs.google.com/spreadsheets/d/${config.sheetId}" target="_blank" style="color: #667eea;">
-                            Открыть таблицу
-                        </a>
-                    </div>
-                `;
-                return;
-            }
-            
-            const moodClass = {
-                'Отлично': 'mood-Отлично',
-                'Хорошо': 'mood-Хорошо',
-                'Нормально': 'mood-Нормально',
-                'Плохо': 'mood-Плохо'
-            };
-            
+        if (!entries || entries.length === 0) {
             container.innerHTML = `
-                <div class="entries-grid">
-                    ${entries.map((entry, index) => `
-                        <div class="entry-card" onclick="viewEntry(${index})">
-                            <div class="entry-date">📅 ${escapeHtml(entry.date)}</div>
-                            <div class="entry-title">${escapeHtml(entry.title)}</div>
-                            <div class="entry-mood ${moodClass[entry.mood] || ''}">${escapeHtml(entry.mood)}</div>
-                            <div class="entry-preview">${escapeHtml(entry.text.substring(0, 100))}${entry.text.length > 100 ? '...' : ''}</div>
-                        </div>
-                    `).join('')}
-                </div>
-                <div class="info" style="margin-top: 20px;">
-                    📊 Все записи также сохраняются в Google Sheets:<br>
+                <div class="loading">📭 Пока нет записей. Создайте первую запись!</div>
+                <div class="info" style="margin-top: 10px;">
+                    💡 Записи будут сохраняться в Google Sheets таблицу:<br>
                     <a href="https://docs.google.com/spreadsheets/d/${config.sheetId}" target="_blank" style="color: #667eea;">
                         Открыть таблицу
                     </a>
                 </div>
             `;
-            
-            window.currentEntries = entries;
+            return;
         }
         
-        function viewEntry(index) {
-            const entries = window.currentEntries || [];
-            const entry = entries[index];
-            if (!entry) return;
-            
-            const moodEmoji = { 'Отлично': '🌟', 'Хорошо': '😊', 'Нормально': '😐', 'Плохо': '😔' };
-            
-            document.getElementById('modal-content').innerHTML = `
-                <h2>${escapeHtml(entry.title)}</h2>
-                <div style="color: #667eea; margin: 10px 0;">📅 ${escapeHtml(entry.date)}</div>
-                <div style="margin: 10px 0;">${moodEmoji[entry.mood] || '😊'} Настроение: ${escapeHtml(entry.mood)}</div>
-                <hr style="margin: 15px 0;">
-                <div style="margin-top: 20px; line-height: 1.8; white-space: pre-wrap;">${escapeHtml(entry.text)}</div>
-                <hr style="margin: 20px 0 10px 0;">
-                <button onclick="deleteEntry(${index})" style="background: #dc3545; width: 100%;">🗑️ Удалить запись</button>
-            `;
-            document.getElementById('modal').style.display = 'flex';
-        }
+        const moodClass = {
+            'Отлично': 'mood-Отлично',
+            'Хорошо': 'mood-Хорошо',
+            'Нормально': 'mood-Нормально',
+            'Плохо': 'mood-Плохо'
+        };
         
-        function deleteEntry(index) {
-            if (confirm('Удалить эту запись из локального списка?')) {
-                localEntries.splice(index, 1);
-                localStorage.setItem('diary_local_cache', JSON.stringify(localEntries));
-                closeModal();
-                loadEntries();
-                showMessage('Запись удалена из локального списка', 'success', 'entries-list');
-            }
-        }
+        container.innerHTML = `
+            <div class="entries-grid">
+                ${entries.map((entry, index) => `
+                    <div class="entry-card" onclick="viewEntry(${index})">
+                        <div class="entry-date">📅 ${escapeHtml(entry.date)}</div>
+                        <div class="entry-title">${escapeHtml(entry.title)}</div>
+                        <div class="entry-mood ${moodClass[entry.mood] || ''}">${escapeHtml(entry.mood)}</div>
+                        <div class="entry-preview">${escapeHtml(entry.text.substring(0, 100))}${entry.text.length > 100 ? '...' : ''}</div>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="info" style="margin-top: 20px;">
+                📊 Все записи сохраняются в Google Sheets:<br>
+                <a href="https://docs.google.com/spreadsheets/d/${config.sheetId}" target="_blank" style="color: #667eea;">
+                    Открыть таблицу
+                </a>
+            </div>
+        `;
         
-        function openSheet() {
-            window.open(`https://docs.google.com/spreadsheets/d/${config.sheetId}`, '_blank');
-        }
+        window.currentEntries = entries;
+    }
+    
+    function viewEntry(index) {
+        const entries = window.currentEntries || [];
+        const entry = entries[index];
+        if (!entry) return;
         
-        function showMessage(text, type, containerId) {
-            const container = document.getElementById(containerId);
-            if (container) {
-                container.innerHTML = `<div class="${type}">${text}</div>`;
-                setTimeout(() => { if (container) container.innerHTML = ''; }, 4000);
-            }
-        }
+        const moodEmoji = { 'Отлично': '🌟', 'Хорошо': '😊', 'Нормально': '😐', 'Плохо': '😔' };
         
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        document.getElementById('modal-content').innerHTML = `
+            <h2>${escapeHtml(entry.title)}</h2>
+            <div style="color: #667eea; margin: 10px 0;">📅 ${escapeHtml(entry.date)}</div>
+            <div style="margin: 10px 0;">${moodEmoji[entry.mood] || '😊'} Настроение: ${escapeHtml(entry.mood)}</div>
+            <hr style="margin: 15px 0;">
+            <div style="margin-top: 20px; line-height: 1.8; white-space: pre-wrap;">${escapeHtml(entry.text)}</div>
+        `;
+        document.getElementById('modal').style.display = 'flex';
+    }
+    
+    function openSheet() {
+        window.open(`https://docs.google.com/spreadsheets/d/${config.sheetId}`, '_blank');
+    }
+    
+    function showMessage(text, type, containerId) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = `<div class="${type}">${text}</div>`;
+            setTimeout(() => { if (container) container.innerHTML = ''; }, 4000);
         }
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function showPage(page) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+        const targetPage = document.getElementById(`${page}-page`);
+        if (targetPage) targetPage.classList.add('active-page');
         
-        function showPage(page) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-            const targetPage = document.getElementById(`${page}-page`);
-            if (targetPage) targetPage.classList.add('active-page');
-            
-            document.querySelectorAll('.menu a').forEach(link => link.classList.remove('active'));
-            const menuItem = document.getElementById(`menu-${page}`);
-            if (menuItem) menuItem.classList.add('active');
-            
-            if (page === 'entries') loadEntries();
-            if (page === 'settings') checkConnection();
-        }
+        document.querySelectorAll('.menu a').forEach(link => link.classList.remove('active'));
+        const menuItem = document.getElementById(`menu-${page}`);
+        if (menuItem) menuItem.classList.add('active');
         
-        function closeModal() {
-            const modal = document.getElementById('modal');
-            if (modal) modal.style.display = 'none';
-        }
+        if (page === 'entries') loadEntriesFromSheet();
+        if (page === 'settings') checkConnection();
+    }
+    
+    function closeModal() {
+        const modal = document.getElementById('modal');
+        if (modal) modal.style.display = 'none';
+    }
+    
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('diary-form');
+        if (form) form.addEventListener('submit', saveEntry);
         
-        // Инициализация
-        document.addEventListener('DOMContentLoaded', function() {
-            const form = document.getElementById('diary-form');
-            if (form) form.addEventListener('submit', saveEntry);
-            
-            const dateInput = document.getElementById('entry-date');
-            if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
-            
-            loadSettings();
-            loadEntries();
-            checkConnection();
-        });
-    </script>
+        const dateInput = document.getElementById('entry-date');
+        if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+        
+        loadSettings();
+        loadEntriesFromSheet();
+        checkConnection();
+    });
+</script>
 </body>
 </html>
