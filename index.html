@@ -1,193 +1,399 @@
-// ============ GOOGLE SHEETS КОНФИГУРАЦИЯ ============
-// ⚠️ ВАЖНО: Используйте ТОЛЬКО эти URL и ID
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjvAJjIxcHJEFA33Fjof1yEGzyTts2qbDctzHYOzAnhalR4W9iEc85tqKRQdcbKxzGdg/exec';
-const QA_SHEET_ID = '1B56gBPEpkmNdGnZ3N2YlGznMq_nHLSuBJEic3erWtDs';
-const QA_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwda2cM0tbBI9GzZHEJvuohCzelI7Yt53arP3zbxtdYojxN39hSV2qE7UUcQ7wHF6IFPg/exec';
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный дневник - Google Sheets</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .menu { display: flex; justify-content: space-between; width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .menu a { flex: 1; text-align: center; padding: 15px 20px; text-decoration: none; color: white; transition: all 0.3s; font-weight: 500; border-bottom: 3px solid transparent; cursor: pointer; }
+        .menu a:hover, .menu a.active { background-color: rgba(255,255,255,0.1); border-bottom-color: white; }
+        .menu i { font-style: normal; margin-right: 8px; }
+        .content { padding: 30px; }
+        .page { display: none; animation: fadeIn 0.3s; }
+        .page.active-page { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+        input, textarea, select { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 16px; font-family: inherit; }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: #667eea; }
+        textarea { resize: vertical; min-height: 120px; }
+        button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s; margin-top: 10px; margin-right: 10px; }
+        button:hover { transform: translateY(-2px); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .entries-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; margin-top: 20px; }
+        .entry-card { background: #f8f9fa; border-radius: 15px; padding: 20px; cursor: pointer; transition: all 0.3s; border: 1px solid #e0e0e0; }
+        .entry-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .entry-date { color: #667eea; font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+        .entry-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #333; }
+        .entry-mood { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-bottom: 10px; }
+        .mood-Отлично { background: #d4edda; color: #155724; }
+        .mood-Хорошо { background: #d1ecf1; color: #0c5460; }
+        .mood-Нормально { background: #fff3cd; color: #856404; }
+        .mood-Плохо { background: #f8d7da; color: #721c24; }
+        .entry-preview { color: #666; font-size: 14px; line-height: 1.5; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; border-radius: 20px; max-width: 600px; width: 90%; max-height: 80%; overflow-y: auto; padding: 30px; position: relative; }
+        .close-modal { position: absolute; top: 20px; right: 20px; font-size: 30px; cursor: pointer; color: #999; }
+        .loading { text-align: center; padding: 40px; color: #666; }
+        .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        .info { background: #d1ecf1; color: #0c5460; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        @media (max-width: 768px) { .menu a { padding: 12px 10px; font-size: 14px; } .content { padding: 20px; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="menu">
+            <a onclick="showPage('diary')" class="active" id="menu-diary"><i>📝</i> Дневник</a>
+            <a onclick="showPage('entries')" id="menu-entries"><i>📖</i> Записи</a>
+            <a onclick="showPage('settings')" id="menu-settings"><i>⚙️</i> Настройки</a>
+        </div>
 
-let allEntries = [];
-let currentStripPage = 1, currentFullPage = 1;
-const ITEMS_PER_STRIP = 3, ITEMS_PER_FULL = 6;
+        <div class="content">
+            <div id="diary-page" class="page active-page">
+                <h2>📝 Новая запись</h2>
+                <div id="diary-message"></div>
+                <form id="diary-form">
+                    <div class="form-group">
+                        <label>📅 Дата</label>
+                        <input type="date" id="entry-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label>📌 Заголовок</label>
+                        <input type="text" id="entry-title" placeholder="О чем сегодня?" required>
+                    </div>
+                    <div class="form-group">
+                        <label>😊 Настроение</label>
+                        <select id="entry-mood">
+                            <option value="Отлично">🌟 Отлично</option>
+                            <option value="Хорошо">😊 Хорошо</option>
+                            <option value="Нормально">😐 Нормально</option>
+                            <option value="Плохо">😔 Плохо</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>📝 Запись</label>
+                        <textarea id="entry-text" placeholder="Ваши мысли, события, идеи..." rows="5" required></textarea>
+                    </div>
+                    <button type="submit">💾 Сохранить в Google Sheets</button>
+                </form>
+            </div>
 
-// ============ Семечки - ЕДИНЫЙ СЧЕТЧИК ============
-let seedTotal = localStorage.getItem('cherikSeeds') ? parseInt(localStorage.getItem('cherikSeeds')) : 128;
+            <div id="entries-page" class="page">
+                <h2>📖 Мои записи</h2>
+                <div id="entries-list"></div>
+            </div>
 
-const updateSeedUI = () => {
-    const seedSpanMain = document.getElementById('seedCount');
-    if (seedSpanMain) seedSpanMain.innerText = seedTotal;
-    const seedSpanFooter = document.getElementById('seedCountFooter');
-    if (seedSpanFooter) seedSpanFooter.innerText = seedTotal;
-    localStorage.setItem('cherikSeeds', seedTotal);
-};
-updateSeedUI();
+            <div id="settings-page" class="page">
+                <h2>⚙️ Настройки</h2>
+                <div class="form-group">
+                    <label>📊 ID Google Sheets таблицы</label>
+                    <input type="text" id="sheet-id" placeholder="ID таблицы" value="1H-PeY-hJKNuape3fUyOScaZrdGaHHocFiN_e0Cu4lgk">
+                    <small style="color: #666; display: block; margin-top: 5px;">ID вашей таблицы</small>
+                </div>
+                <div class="form-group">
+                    <label>📄 Название листа</label>
+                    <input type="text" id="sheet-name" placeholder="Лист1" value="Лист1">
+                </div>
+                <button onclick="saveSettings()">💾 Сохранить настройки</button>
+                <button onclick="openSheet()" style="background: #4285f4;">📊 Открыть Google Sheets</button>
+                <div class="info" style="margin-top: 20px;" id="status-info">
+                    ⏳ Проверка подключения...
+                </div>
+            </div>
+        </div>
+    </div>
 
-document.getElementById('donateSeedBtn')?.addEventListener('click', () => {
-    seedTotal += 5;
-    updateSeedUI();
-    alert('🐹 Чирик запищал от радости! +5 семечек!');
-});
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <div id="modal-content"></div>
+        </div>
+    </div>
 
-// ============ ЗАГРУЗКА ЗАПИСЕЙ ИЗ ТАБЛИЦЫ ============
-async function loadEntriesFromSheets() {
-    try {
-        console.log('Загрузка записей...');
-        
-        // Формируем URL с параметрами
-        const url = `${SCRIPT_URL}?action=get&sheetId=1B56gBPEpkmNdGnZ3N2YlGznMq_nHLSuBJEic3erWtDs&sheetName=Лист1`;
-        
-        console.log('Запрос к:', url);
-        
-        const res = await fetch(url);
-        const data = await res.json();
-        
-        console.log('Ответ от сервера:', data);
-        
-        if (data.status === 'success') {
-            let entries = data.entries || [];
-            // Фильтруем только валидные записи
-            allEntries = entries.filter(e => e.date && e.title).sort((a,b) => new Date(b.date) - new Date(a.date));
-            console.log(`Загружено ${allEntries.length} записей`);
-        } else {
-            console.error('Ошибка:', data.message);
-            allEntries = [];
+    <script>
+    // ВАШ URL ОТ APPS SCRIPT (скопируйте после публикации)
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzFsFZDHzXnvVXd-Ou6oJhwv82oK24EvbRpBujDIaB02ZkBNBwgwyUOkc7bx0CleGPA-g/exec';
+    
+    // Конфигурация
+    let config = {
+        sheetId: '1H-PeY-hJKNuape3fUyOScaZrdGaHHocFiN_e0Cu4lgk',
+        sheetName: 'Лист1'
+    };
+    
+    // Локальное хранилище для кэша
+    let localEntries = [];
+    
+    // Загрузка настроек
+    function loadSettings() {
+        const saved = localStorage.getItem('diary_config');
+        if (saved) {
+            config = JSON.parse(saved);
         }
-    } catch(e) { 
-        console.error('Ошибка загрузки:', e); 
-        allEntries = []; 
+        const sheetIdInput = document.getElementById('sheet-id');
+        const sheetNameInput = document.getElementById('sheet-name');
+        if (sheetIdInput) sheetIdInput.value = config.sheetId;
+        if (sheetNameInput) sheetNameInput.value = config.sheetName;
     }
-    renderAll();
-}
-
-// ============ ОТОБРАЖЕНИЕ ДНЕВНИКА ============
-function renderStripCards() {
-    const container = document.getElementById('stripCardsContainer');
-    if(!container) return;
-    if(!allEntries.length) { 
-        container.innerHTML = '<div class="info-message">📭 Пока нет записей</div>'; 
-        return; 
+    
+    // Сохранение настроек
+    function saveSettings() {
+        config.sheetId = document.getElementById('sheet-id').value;
+        config.sheetName = document.getElementById('sheet-name').value;
+        localStorage.setItem('diary_config', JSON.stringify(config));
+        showMessage('Настройки сохранены!', 'success', 'diary-message');
+        checkConnection();
     }
-    const total = Math.ceil(allEntries.length / ITEMS_PER_STRIP);
-    if(currentStripPage > total) currentStripPage = total;
-    const start = (currentStripPage-1)*ITEMS_PER_STRIP;
-    const page = allEntries.slice(start, start+ITEMS_PER_STRIP);
-    container.innerHTML = page.map(e => `<div class="strip-card" data-entry='${JSON.stringify(e).replace(/'/g,"&apos;")}'>
-        <div class="card-meta"><span class="card-date">📅 ${e.date}</span><span class="card-mood">${e.mood || '😊'}</span></div>
-        <div class="card-title">${escapeHtml(e.title)}</div>
-        <div class="card-preview">${escapeHtml((e.text || '').substring(0,150))}</div>
-    </div>`).join('');
     
-    const pageIndicator = document.getElementById('pageIndicatorStrip');
-    if(pageIndicator) pageIndicator.innerHTML = `Страница ${currentStripPage} из ${total}`;
-    
-    const prevBtn = document.getElementById('prevPageBtn');
-    const nextBtn = document.getElementById('nextPageBtn');
-    if(prevBtn) prevBtn.disabled = currentStripPage <= 1;
-    if(nextBtn) nextBtn.disabled = currentStripPage >= total;
-    
-    document.querySelectorAll('.strip-card').forEach(c => {
-        c.onclick = () => showModal(JSON.parse(c.dataset.entry));
-    });
-}
-
-function renderFullDiary() {
-    const container = document.getElementById('fullEntriesList');
-    if(!container) return;
-    if(!allEntries.length) { 
-        container.innerHTML = '<div class="info-message">📭 Нет записей</div>'; 
-        return; 
+    // Проверка подключения к Google Sheets
+    async function checkConnection() {
+        const statusDiv = document.getElementById('status-info');
+        if (!statusDiv) return;
+        
+        statusDiv.innerHTML = '⏳ Проверка подключения...';
+        statusDiv.className = 'info';
+        
+        try {
+            const response = await fetch(`${SCRIPT_URL}?test=1`, {
+                method: 'GET'
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'ok') {
+                statusDiv.innerHTML = '✅ Apps Script доступен! Записи будут сохраняться в Google Sheets.';
+                statusDiv.className = 'success';
+            } else {
+                statusDiv.innerHTML = '⚠️ Ошибка подключения к Apps Script.';
+                statusDiv.className = 'error';
+            }
+        } catch (error) {
+            console.error('Ошибка:', error);
+            statusDiv.innerHTML = '⚠️ Не удалось подключиться к Apps Script. Проверьте URL и интернет-соединение.';
+            statusDiv.className = 'error';
+        }
     }
-    const total = Math.ceil(allEntries.length / ITEMS_PER_FULL);
-    if(currentFullPage > total) currentFullPage = total;
-    const start = (currentFullPage-1)*ITEMS_PER_FULL;
-    const page = allEntries.slice(start, start+ITEMS_PER_FULL);
-    container.innerHTML = page.map(e => `<div class="entry-card-readonly" data-entry='${JSON.stringify(e).replace(/'/g,"&apos;")}'>
-        <div>📅 ${e.date} ${e.mood || '😊'}</div>
-        <h3>${escapeHtml(e.title)}</h3>
-        <div>${escapeHtml((e.text || '').substring(0,100))}...</div>
-    </div>`).join('');
     
-    const pageInfo = document.getElementById('fullPageInfo');
-    if(pageInfo) pageInfo.innerText = `Страница ${currentFullPage} из ${total}`;
-    
-    const prevBtn = document.getElementById('fullPrevBtn');
-    const nextBtn = document.getElementById('fullNextBtn');
-    if(prevBtn) prevBtn.disabled = currentFullPage <= 1;
-    if(nextBtn) nextBtn.disabled = currentFullPage >= total;
-    
-    document.querySelectorAll('.entry-card-readonly').forEach(c => {
-        c.onclick = () => showModal(JSON.parse(c.dataset.entry));
-    });
-}
-
-function escapeHtml(str) {
-    if(!str) return '';
-    return str.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m] || m));
-}
-
-function showModal(entry) {
-    let modal = document.getElementById('globalModal');
-    if(!modal) { 
-        modal = document.createElement('div'); 
-        modal.id = 'globalModal'; 
-        modal.className = 'modal-diary'; 
-        document.body.appendChild(modal); 
+    // Сохранение записи
+    async function saveEntry(event) {
+        event.preventDefault();
+        
+        const date = document.getElementById('entry-date').value;
+        const title = document.getElementById('entry-title').value;
+        const moodSelect = document.getElementById('entry-mood');
+        const mood = moodSelect.options[moodSelect.selectedIndex].text;
+        const text = document.getElementById('entry-text').value;
+        
+        if (!date || !title || !text) {
+            showMessage('Заполните все поля!', 'error', 'diary-message');
+            return;
+        }
+        
+        const submitBtn = document.querySelector('#diary-form button');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = '⏳ Отправка в Google Sheets...';
+        submitBtn.disabled = true;
+        
+        try {
+            const formData = new URLSearchParams();
+            formData.append('date', date);
+            formData.append('title', title);
+            formData.append('mood', mood);
+            formData.append('text', text);
+            formData.append('sheetId', config.sheetId);
+            formData.append('sheetName', config.sheetName);
+            formData.append('timestamp', new Date().toISOString());
+            
+            const response = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString()
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showMessage('✅ Запись успешно сохранена в Google Sheets!', 'success', 'diary-message');
+                
+                // Очищаем форму
+                document.getElementById('entry-title').value = '';
+                document.getElementById('entry-text').value = '';
+                document.getElementById('entry-date').value = new Date().toISOString().split('T')[0];
+                
+                // Обновляем список записей из таблицы
+                await loadEntriesFromSheet();
+            } else {
+                showMessage('❌ Ошибка: ' + result.message, 'error', 'diary-message');
+            }
+        } catch (error) {
+            console.error('Ошибка:', error);
+            showMessage('❌ Ошибка сохранения. Проверьте подключение.', 'error', 'diary-message');
+        } finally {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }
     }
-    modal.innerHTML = `<div class="modal-card">
-        <span class="close-modal" onclick="closeModal()">&times;</span>
-        <h3>${escapeHtml(entry.title)}</h3>
-        <div class="modal-meta">📅 ${entry.date} | ${entry.mood || '😊'}</div>
-        <div class="modal-text">${(entry.text || '').replace(/\n/g,'<br>')}</div>
-        <button onclick="closeModal()">Закрыть</button>
-    </div>`;
-    modal.style.display = 'flex';
-}
-
-window.closeModal = () => { 
-    let m = document.getElementById('globalModal'); 
-    if(m) m.style.display = 'none'; 
-};
-
-function renderAll() { 
-    renderStripCards(); 
-    renderFullDiary(); 
-}
-
-function showDiary(show) {
-    const mainSite = document.getElementById('mainSite');
-    const diaryApp = document.getElementById('diaryFullApp');
-    if(mainSite) mainSite.style.display = show ? 'none' : 'block';
-    if(diaryApp) diaryApp.style.display = show ? 'block' : 'none';
-    if(show) renderFullDiary();
-}
-
-// ============ ИНИЦИАЛИЗАЦИЯ ============
-// Ждем полной загрузки DOM
-document.addEventListener('DOMContentLoaded', () => {
-    // Навигация
-    document.getElementById('prevPageBtn')?.addEventListener('click', () => { 
-        if(currentStripPage > 1) { currentStripPage--; renderStripCards(); } 
-    });
-    document.getElementById('nextPageBtn')?.addEventListener('click', () => { 
-        let max = Math.ceil(allEntries.length / ITEMS_PER_STRIP); 
-        if(currentStripPage < max) { currentStripPage++; renderStripCards(); } 
-    });
-    document.getElementById('fullPrevBtn')?.addEventListener('click', () => { 
-        if(currentFullPage > 1) { currentFullPage--; renderFullDiary(); } 
-    });
-    document.getElementById('fullNextBtn')?.addEventListener('click', () => { 
-        let max = Math.ceil(allEntries.length / ITEMS_PER_FULL); 
-        if(currentFullPage < max) { currentFullPage++; renderFullDiary(); } 
-    });
-    document.getElementById('openFullDiaryBtn')?.addEventListener('click', () => showDiary(true));
-    document.getElementById('navDiaryLink')?.addEventListener('click', () => showDiary(true));
-    document.getElementById('backToMainFromDiary')?.addEventListener('click', () => showDiary(false));
     
-    // Загружаем записи
-    loadEntriesFromSheets();
-});
-
-// ============ ЛАБИРИНТ (оставляем как есть) ============
-// ... ваш существующий код лабиринта ...
-// (не меняйте его, просто убедитесь что он здесь)
-
-// ============ ВОПРОСЫ (оставляем как есть) ============
-// ... ваш существующий код вопросов ...
+    // Загрузка записей из Google Sheets
+    async function loadEntriesFromSheet() {
+        try {
+            const response = await fetch(`${SCRIPT_URL}?action=get&sheetId=${config.sheetId}&sheetName=${config.sheetName}`, {
+                method: 'GET'
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success' && result.entries) {
+                localEntries = result.entries;
+                localStorage.setItem('diary_local_cache', JSON.stringify(localEntries));
+                displayEntries(localEntries.sort((a, b) => new Date(b.date) - new Date(a.date)));
+            } else {
+                // Если не удалось загрузить из таблицы, используем локальный кэш
+                const cached = localStorage.getItem('diary_local_cache');
+                if (cached) {
+                    localEntries = JSON.parse(cached);
+                    displayEntries(localEntries);
+                } else {
+                    displayEntries([]);
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки:', error);
+            // Используем локальный кэш
+            const cached = localStorage.getItem('diary_local_cache');
+            if (cached) {
+                localEntries = JSON.parse(cached);
+                displayEntries(localEntries);
+            } else {
+                displayEntries([]);
+            }
+        }
+    }
+    
+    // Загрузка записей для отображения (совместимость)
+    function loadEntries() {
+        loadEntriesFromSheet();
+    }
+    
+    // Отображение записей
+    function displayEntries(entries) {
+        const container = document.getElementById('entries-list');
+        if (!container) return;
+        
+        if (!entries || entries.length === 0) {
+            container.innerHTML = `
+                <div class="loading">📭 Пока нет записей. Создайте первую запись!</div>
+                <div class="info" style="margin-top: 10px;">
+                    💡 Записи будут сохраняться в Google Sheets таблицу:<br>
+                    <a href="https://docs.google.com/spreadsheets/d/${config.sheetId}" target="_blank" style="color: #667eea;">
+                        Открыть таблицу
+                    </a>
+                </div>
+            `;
+            return;
+        }
+        
+        const moodClass = {
+            'Отлично': 'mood-Отлично',
+            'Хорошо': 'mood-Хорошо',
+            'Нормально': 'mood-Нормально',
+            'Плохо': 'mood-Плохо'
+        };
+        
+        container.innerHTML = `
+            <div class="entries-grid">
+                ${entries.map((entry, index) => `
+                    <div class="entry-card" onclick="viewEntry(${index})">
+                        <div class="entry-date">📅 ${escapeHtml(entry.date)}</div>
+                        <div class="entry-title">${escapeHtml(entry.title)}</div>
+                        <div class="entry-mood ${moodClass[entry.mood] || ''}">${escapeHtml(entry.mood)}</div>
+                        <div class="entry-preview">${escapeHtml(entry.text.substring(0, 100))}${entry.text.length > 100 ? '...' : ''}</div>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="info" style="margin-top: 20px;">
+                📊 Все записи сохраняются в Google Sheets:<br>
+                <a href="https://docs.google.com/spreadsheets/d/${config.sheetId}" target="_blank" style="color: #667eea;">
+                    Открыть таблицу
+                </a>
+            </div>
+        `;
+        
+        window.currentEntries = entries;
+    }
+    
+    function viewEntry(index) {
+        const entries = window.currentEntries || [];
+        const entry = entries[index];
+        if (!entry) return;
+        
+        const moodEmoji = { 'Отлично': '🌟', 'Хорошо': '😊', 'Нормально': '😐', 'Плохо': '😔' };
+        
+        document.getElementById('modal-content').innerHTML = `
+            <h2>${escapeHtml(entry.title)}</h2>
+            <div style="color: #667eea; margin: 10px 0;">📅 ${escapeHtml(entry.date)}</div>
+            <div style="margin: 10px 0;">${moodEmoji[entry.mood] || '😊'} Настроение: ${escapeHtml(entry.mood)}</div>
+            <hr style="margin: 15px 0;">
+            <div style="margin-top: 20px; line-height: 1.8; white-space: pre-wrap;">${escapeHtml(entry.text)}</div>
+        `;
+        document.getElementById('modal').style.display = 'flex';
+    }
+    
+    function openSheet() {
+        window.open(`https://docs.google.com/spreadsheets/d/${config.sheetId}`, '_blank');
+    }
+    
+    function showMessage(text, type, containerId) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = `<div class="${type}">${text}</div>`;
+            setTimeout(() => { if (container) container.innerHTML = ''; }, 4000);
+        }
+    }
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function showPage(page) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+        const targetPage = document.getElementById(`${page}-page`);
+        if (targetPage) targetPage.classList.add('active-page');
+        
+        document.querySelectorAll('.menu a').forEach(link => link.classList.remove('active'));
+        const menuItem = document.getElementById(`menu-${page}`);
+        if (menuItem) menuItem.classList.add('active');
+        
+        if (page === 'entries') loadEntriesFromSheet();
+        if (page === 'settings') checkConnection();
+    }
+    
+    function closeModal() {
+        const modal = document.getElementById('modal');
+        if (modal) modal.style.display = 'none';
+    }
+    
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('diary-form');
+        if (form) form.addEventListener('submit', saveEntry);
+        
+        const dateInput = document.getElementById('entry-date');
+        if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+        
+        loadSettings();
+        loadEntriesFromSheet();
+        checkConnection();
+    });
+</script>
+</body>
+</html>
